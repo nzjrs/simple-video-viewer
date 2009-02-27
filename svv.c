@@ -10,7 +10,6 @@ gcc -Wall svv.c -o svv $(pkg-config gtk+-2.0 --cflags --libs) -lv4lconvert
  */
 
 /* comment these lines if you have not */
-#define WITH_V4L2_LIB 1		/* v4l library */
 #define WITH_GTK 1		/* gtk+ */
 
 #include <stdio.h>
@@ -37,12 +36,10 @@ gcc -Wall svv.c -o svv $(pkg-config gtk+-2.0 --cflags --libs) -lv4lconvert
 #include <gtk/gtk.h>
 #endif
 
-#ifdef WITH_V4L2_LIB
 #include "libv4lconvert.h"
 static struct v4lconvert_data *v4lconvert_data;
 static struct v4l2_format src_fmt;	/* raw format */
 static unsigned char *dst_buf;
-#endif
 
 #define IO_METHOD_READ 7	/* !! must be != V4L2_MEMORY_MMAP / USERPTR */
 
@@ -65,10 +62,7 @@ static int grab, raw;
 static void errno_exit(const char *s)
 {
 	fprintf(stderr, "%s error %d, %s\n", s, errno, strerror(errno));
-#ifdef WITH_V4L2_LIB
-	fprintf(stderr, "%s\n",
-			v4lconvert_get_error_message(v4lconvert_data));
-#endif
+	fprintf(stderr, "%s\n", v4lconvert_get_error_message(v4lconvert_data));
 	exit(EXIT_FAILURE);
 }
 
@@ -142,7 +136,6 @@ static int xioctl(int fd, int request, void *arg)
 
 static void process_image(unsigned char *p, int len)
 {
-#ifdef WITH_V4L2_LIB
 	if (!raw) {
 		if (v4lconvert_convert(v4lconvert_data,
 					&src_fmt,
@@ -156,7 +149,7 @@ static void process_image(unsigned char *p, int len)
 		p = dst_buf;
 		len = fmt.fmt.pix.sizeimage;
 	}
-#endif
+
 	if (grab) {
 		FILE *f;
 
@@ -571,7 +564,7 @@ static void init_device(int w, int h)
 	fmt.fmt.pix.height = h;
 	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB24;
 	fmt.fmt.pix.field = V4L2_FIELD_INTERLACED;
-#ifdef WITH_V4L2_LIB
+
 	v4lconvert_data = v4lconvert_create(fd);
 	if (v4lconvert_data == NULL)
 		errno_exit("v4lconvert_create");
@@ -586,10 +579,6 @@ static void init_device(int w, int h)
 	       (src_fmt.fmt.pix.pixelformat >> 16) & 0xff,
 	       (src_fmt.fmt.pix.pixelformat >> 24) & 0xff,
 		src_fmt.fmt.pix.width, src_fmt.fmt.pix.height);
-#else
-	ret = xioctl(fd, VIDIOC_S_FMT, &fmt);
-	sizeimage = fmt.fmt.pix.sizeimage;
-#endif
 
 	if (ret < 0)
 		errno_exit("VIDIOC_S_FMT");
