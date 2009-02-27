@@ -172,12 +172,9 @@ static int read_frame(void)
 			switch (errno) {
 			case EAGAIN:
 				return 0;
-
 			case EIO:
 				/* Could ignore EIO, see spec. */
-
 				/* fall through */
-
 			default:
 				errno_exit("VIDIOC_DQBUF");
 			}
