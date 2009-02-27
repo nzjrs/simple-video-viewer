@@ -169,7 +169,7 @@ static int read_frame(void)
 
 	switch (io) {
 	case IO_METHOD_READ:
-		i = read(fd, buffers[0].start, buffers[0].length);
+		i = v4l2_read(fd, buffers[0].start, buffers[0].length);
 		if (i < 0) {
 			switch (errno) {
 			case EAGAIN:
