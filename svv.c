@@ -6,7 +6,9 @@
  *  http://moinejf.free.fr/
  */
 
+/* Defined in Makefile 
 #define WITH_GTK 1
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +26,7 @@
 
 #include <linux/videodev2.h>
 
-#ifdef WITH_GTK
+#if WITH_GTK
 #include <gtk/gtk.h>
 #endif
 
@@ -60,7 +62,7 @@ static void errno_exit(const char *s)
 	exit(EXIT_FAILURE);
 }
 
-#ifdef WITH_GTK
+#if WITH_GTK
 static int read_frame(void);
 
 /* graphic functions */
@@ -128,7 +130,7 @@ static void process_image(unsigned char *p, int len)
 		printf("image dumped to 'image.dat'\n");
 		exit(EXIT_SUCCESS);
 	}
-#ifdef WITH_GTK
+#if WITH_GTK
 	gdk_draw_rgb_image(drawing_area->window,
 			   drawing_area->style->white_gc,
 			   0, 0,		/* xpos, ypos */
@@ -137,7 +139,7 @@ static void process_image(unsigned char *p, int len)
 			   p,
 			   fmt.fmt.pix.width * 3);
 #else
-	fputc('.', stdout);
+	fputc('.', stdout);	fflush(stdout);
 #endif
 }
 
@@ -248,19 +250,19 @@ static int get_frame()
 	return read_frame();
 }
 
-#ifndef WITH_GTK
+#if !WITH_GTK
 static void mainloop(void)
 {
-	int count;
+	int count = 100;
 
-//	count = 20;
-	count = 10000;
+	printf("capturing %u frames\n", count);
 	while (--count >= 0) {
 		for (;;) {
 			if (get_frame())
 				break;
 		}
 	}
+	fputc('\n', stdout); fflush(stdout);
 }
 #endif
 
@@ -676,7 +678,7 @@ int main(int argc, char **argv)
 	open_device();
 	init_device(w, h);
 	start_capturing();
-#ifdef WITH_GTK
+#if WITH_GTK
 	if (grab)
 		get_frame();
 	else
