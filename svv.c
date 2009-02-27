@@ -3,10 +3,7 @@
  *
  *  This program can be used and distributed without restrictions.
  *
- * Generation (adjust to your libraries):
-
-gcc -Wall svv.c -o svv $(pkg-config gtk+-2.0 --cflags --libs) -lv4lconvert
-
+ *  http://moinejf.free.fr/
  */
 
 /* comment these lines if you have not */
@@ -29,7 +26,6 @@ gcc -Wall svv.c -o svv $(pkg-config gtk+-2.0 --cflags --libs) -lv4lconvert
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 
-#include <asm/types.h>		/* for videodev2.h */
 #include <linux/videodev2.h>
 
 #ifdef WITH_GTK
