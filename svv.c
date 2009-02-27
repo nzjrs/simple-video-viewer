@@ -51,7 +51,7 @@ static int io = V4L2_MEMORY_MMAP;
 static int fd = -1;
 struct buffer *buffers;
 static int n_buffers;
-static int grab, raw;
+static int grab;
 
 static void errno_exit(const char *s)
 {
@@ -141,8 +141,6 @@ static void process_image(unsigned char *p, int len)
 		f = fopen("image.dat", "w");
 		fwrite(p, 1, len, f);
 		fclose(f);
-		if (raw)
-			printf ("raw ");
 		printf("image dumped to 'image.dat'\n");
 		exit(EXIT_SUCCESS);
 	}
@@ -626,7 +624,6 @@ static void usage(FILE * fp, int argc, char **argv)
 		"-m | --method      m Use memory mapped buffers (default)\n"
 		"                   r Use read() calls\n"
 		"                   u Use application allocated buffers\n"
-		"-r | --raw           No image conversion\n"
 		"", argv[0]);
 }
 
@@ -638,7 +635,6 @@ static const struct option long_options[] = {
 	{"grab", no_argument, NULL, 'g'},
 	{"help", no_argument, NULL, 'h'},
 	{"method", required_argument, NULL, 'm'},
-	{"raw", no_argument, NULL, 'r'},
 	{}
 };
 
@@ -690,9 +686,6 @@ int main(int argc, char **argv)
 				usage(stderr, argc, argv);
 				exit(EXIT_FAILURE);
 			}
-			break;
-		case 'r':
-			raw = 1;
 			break;
 		default:
 			usage(stderr, argc, argv);
