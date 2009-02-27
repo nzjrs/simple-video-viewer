@@ -6,8 +6,7 @@
  *  http://moinejf.free.fr/
  */
 
-/* comment these lines if you have not */
-#define WITH_GTK 1		/* gtk+ */
+#define WITH_GTK 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,10 +31,14 @@
 #include <libv4l2.h>
 #include <libv4lconvert.h>
 
-#define IO_METHOD_READ 7	/* !! must be != V4L2_MEMORY_MMAP / USERPTR */
-
-static struct v4l2_format fmt;		/* gtk pormat */
-
+/* Sentinal value, must be != V4L2_MEMORY_{MMAP,USERPTR} 
+enum v4l2_memory {
+        V4L2_MEMORY_MMAP
+        V4L2_MEMORY_USERPTR
+        V4L2_MEMORY_OVERLAY
+};
+*/
+#define IO_METHOD_READ 42
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
 struct buffer {
@@ -49,11 +52,11 @@ static int fd = -1;
 struct buffer *buffers;
 static int n_buffers;
 static int grab;
+static struct v4l2_format fmt;
 
 static void errno_exit(const char *s)
 {
 	fprintf(stderr, "%s error %d, %s\n", s, errno, strerror(errno));
-//	fprintf(stderr, "%s\n", v4lconvert_get_error_message(v4lconvert_data));
 	exit(EXIT_FAILURE);
 }
 
@@ -116,21 +119,6 @@ static int main_frontend(int argc, char *argv[])
 
 static void process_image(unsigned char *p, int len)
 {
-/*	if (!raw) {
-		if (v4lconvert_convert(v4lconvert_data,
-					&src_fmt,
-					&fmt,
-					p, len,
-					dst_buf, fmt.fmt.pix.sizeimage) < 0) {
-			if (errno != EAGAIN)
-				errno_exit("v4l_convert");
-			return;
-		}
-		p = dst_buf;
-		len = fmt.fmt.pix.sizeimage;
-	}
-*/
-
 	if (grab) {
 		FILE *f;
 
@@ -145,7 +133,6 @@ static void process_image(unsigned char *p, int len)
 			   drawing_area->style->white_gc,
 			   0, 0,		/* xpos, ypos */
 			   fmt.fmt.pix.width, fmt.fmt.pix.height,
-//			   GDK_RGB_DITHER_MAX,
 			   GDK_RGB_DITHER_NORMAL,
 			   p,
 			   fmt.fmt.pix.width * 3);
