@@ -71,13 +71,12 @@ static void delete_event(GtkWidget * widget, GdkEvent * event, gpointer data)
 	gtk_main_quit();
 }
 
-static void frame_ready(gpointer data,
-			gint source,
-			GdkInputCondition condition)
+static void frame_ready(gpointer data, gint source, GdkInputCondition condition)
 {
-	if (condition != GDK_INPUT_READ)
-		errno_exit("poll");
-	read_frame();
+	/* libv4l seems to throw exceptions our way when emulating read(), just
+	ignore them */
+	if (!(condition & GDK_INPUT_EXCEPTION))
+		read_frame();
 }
 
 
