@@ -14,7 +14,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include <getopt.h>		/* getopt_long() */
+#include <getopt.h>
 
 #include <fcntl.h>
 #include <unistd.h>
