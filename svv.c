@@ -35,8 +35,6 @@
 #include "libv4l2.h"
 #include "libv4lconvert.h"
 
-static unsigned char *dst_buf;
-
 #define IO_METHOD_READ 7	/* !! must be != V4L2_MEMORY_MMAP / USERPTR */
 
 static struct v4l2_format fmt;		/* gtk pormat */
@@ -367,7 +365,7 @@ static void uninit_device(void)
 	case V4L2_MEMORY_MMAP:
 		for (i = 0; i < n_buffers; ++i)
 			if (-1 ==
-			    munmap(buffers[i].start, buffers[i].length))
+			    v4l2_munmap(buffers[i].start, buffers[i].length))
 				errno_exit("munmap");
 		break;
 	case V4L2_MEMORY_USERPTR:
@@ -564,7 +562,6 @@ static void init_device(int w, int h)
 	if (v4l2_ioctl(fd, VIDIOC_S_FMT, &fmt) < 0)
 		errno_exit("VIDIOC_S_FMT");
 
-	dst_buf = malloc(fmt.fmt.pix.sizeimage);
 	printf("\tpixfmt:\t%c%c%c%c (%dx%d)\n",
 		fmt.fmt.pix.pixelformat & 0xff,
 		(fmt.fmt.pix.pixelformat >> 8) & 0xff,
