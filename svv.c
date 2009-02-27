@@ -503,7 +503,6 @@ static void init_device(int w, int h)
 	struct v4lconvert_data *v4lconvert_data;
 	struct v4l2_format src_fmt;	 /* raw source format */
 	struct v4l2_capability cap;
-	int sizeimage;
 
 	if (v4l2_ioctl(fd, VIDIOC_QUERYCAP, &cap) < 0) {
 		if (EINVAL == errno) {
@@ -565,7 +564,6 @@ static void init_device(int w, int h)
 	if (v4l2_ioctl(fd, VIDIOC_S_FMT, &fmt) < 0)
 		errno_exit("VIDIOC_S_FMT");
 
-	sizeimage = fmt.fmt.pix.sizeimage;
 	dst_buf = malloc(fmt.fmt.pix.sizeimage);
 	printf("\tpixfmt:\t%c%c%c%c (%dx%d)\n",
 		fmt.fmt.pix.pixelformat & 0xff,
@@ -577,7 +575,7 @@ static void init_device(int w, int h)
 	switch (io) {
 	case IO_METHOD_READ:
 		printf("\tio:\tio\n");
-		init_read(sizeimage);
+		init_read(fmt.fmt.pix.sizeimage);
 		break;
 	case V4L2_MEMORY_MMAP:
 		printf("\tio:\tmmap\n");
@@ -585,7 +583,7 @@ static void init_device(int w, int h)
 		break;
 	case V4L2_MEMORY_USERPTR:
 		printf("\tio:\tusrptr\n");
-		init_userp(sizeimage);
+		init_userp(fmt.fmt.pix.sizeimage);
 		break;
 	}
 }
