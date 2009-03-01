@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT(Simple Video Viewer, 0.0.1, john.stowers@gmail.com)
+AC_INIT(Simple Video Viewer, 1.0, john.stowers@gmail.com)
 AM_INIT_AUTOMAKE([1.9])
 AC_CONFIG_SRCDIR([svv.c])
 AC_PROG_CC
@@ -19,6 +19,8 @@ AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
 
 AC_MSG_RESULT([
+    ${PACKAGE_NAME} v ${PACKAGE_VERSION}
+
     Install path:             ${prefix}
     Use gtk+ 2.x:             ${have_gtk}
 ])
