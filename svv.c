@@ -6,10 +6,6 @@
  *  http://moinejf.free.fr/
  */
 
-/* Defined in Makefile 
-#define WITH_GTK 1
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +22,7 @@
 
 #include <linux/videodev2.h>
 
-#if WITH_GTK
+#ifdef HAVE_GTK
 #include <gtk/gtk.h>
 #endif
 
@@ -62,7 +58,7 @@ static void errno_exit(const char *s)
 	exit(EXIT_FAILURE);
 }
 
-#if WITH_GTK
+#ifdef HAVE_GTK
 static int read_frame(void);
 
 /* graphic functions */
@@ -130,7 +126,7 @@ static void process_image(unsigned char *p, int len)
 		printf("image dumped to 'image.dat'\n");
 		exit(EXIT_SUCCESS);
 	}
-#if WITH_GTK
+#ifdef HAVE_GTK
 	gdk_draw_rgb_image(drawing_area->window,
 			   drawing_area->style->white_gc,
 			   0, 0,		/* xpos, ypos */
@@ -678,12 +674,16 @@ int main(int argc, char **argv)
 	open_device();
 	init_device(w, h);
 	start_capturing();
-#if WITH_GTK
-	if (grab)
+#ifdef HAVE_GTK
+	if (grab) {
+		printf("\tgtk:\tno\n");
 		get_frame();
-	else
+    } else {
+		printf("\tgtk:\tyes\n");
 		main_frontend(argc, argv);
+    }
 #else
+	printf("\tgtk:\tdisabled\n");
 	mainloop();
 #endif
 	stop_capturing();

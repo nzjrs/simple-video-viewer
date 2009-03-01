@@ -1,11 +1,11 @@
 AC_PREREQ(2.59)
-AC_INIT(helloworld, 0.0.1, dev@helloworld.org)
+AC_INIT(Simple Video Viewer, 0.0.1, john.stowers@gmail.com)
 AM_INIT_AUTOMAKE([1.9])
 AC_CONFIG_SRCDIR([svv.c])
 AC_PROG_CC
 
 #libv4l is compulsory
-PKG_CHECK_MODULES(LIBV4L, libv4l1 libv4l2)
+PKG_CHECK_MODULES(LIBV4L, libv4l2)
 #gtk+ is optional
 PKG_CHECK_MODULES(GTK, gtk+-2.0, 
                   [

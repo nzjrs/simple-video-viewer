@@ -1,2 +1,8 @@
-bin_PROGRAMS=svv
-svv_SOURCES=svv.c
+bin_PROGRAMS = svv
+
+INCLUDES = @LIBV4L_CFLAGS@ @GTK_CFLAGS@
+LIBS= @LIBV4L_LIBS@ @GTK_LIBS@
+
+svv_SOURCES = svv.c
+
+    
