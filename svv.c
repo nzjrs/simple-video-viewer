@@ -6,6 +6,7 @@
  *  http://moinejf.free.fr/
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +39,7 @@ enum v4l2_memory {
 */
 #define IO_METHOD_READ 42
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
+#define DEFAULT_NUM_FRAMES 100
 
 struct buffer {
 	void *start;
@@ -49,8 +51,9 @@ static int io = V4L2_MEMORY_MMAP;
 static int fd = -1;
 struct buffer *buffers;
 static int n_buffers;
-static int grab;
 static struct v4l2_format fmt;
+static unsigned int window;
+static unsigned int grab;
 
 static void errno_exit(const char *s)
 {
@@ -99,7 +102,7 @@ static int main_frontend(int argc, char *argv[])
 
 	drawing_area = gtk_drawing_area_new();
 	gtk_drawing_area_size(GTK_DRAWING_AREA(drawing_area),
-			      fmt.fmt.pix.width, fmt.fmt.pix.height);
+				  fmt.fmt.pix.width, fmt.fmt.pix.height);
 
 	gtk_container_add(GTK_CONTAINER(window), drawing_area);
 
@@ -127,13 +130,17 @@ static void process_image(unsigned char *p, int len)
 		exit(EXIT_SUCCESS);
 	}
 #ifdef HAVE_GTK
-	gdk_draw_rgb_image(drawing_area->window,
-			   drawing_area->style->white_gc,
-			   0, 0,		/* xpos, ypos */
-			   fmt.fmt.pix.width, fmt.fmt.pix.height,
-			   GDK_RGB_DITHER_NORMAL,
-			   p,
-			   fmt.fmt.pix.width * 3);
+	if (window) {
+		gdk_draw_rgb_image(drawing_area->window,
+				   drawing_area->style->white_gc,
+				   0, 0,		/* xpos, ypos */
+				   fmt.fmt.pix.width, fmt.fmt.pix.height,
+				   GDK_RGB_DITHER_NORMAL,
+				   p,
+				   fmt.fmt.pix.width * 3);
+    } else {
+		fputc('.', stdout);	fflush(stdout);
+    }
 #else
 	fputc('.', stdout);	fflush(stdout);
 #endif
@@ -204,7 +211,7 @@ static int read_frame(void)
 
 		for (i = 0; i < n_buffers; ++i)
 			if (buf.m.userptr == (unsigned long) buffers[i].start
-			    && buf.length == buffers[i].length)
+				&& buf.length == buffers[i].length)
 				break;
 		assert(i < n_buffers);
 
@@ -247,10 +254,8 @@ static int get_frame()
 }
 
 #if !WITH_GTK
-static void mainloop(void)
+static void mainloop(int count)
 {
-	int count = 100;
-
 	printf("capturing %u frames\n", count);
 	while (--count >= 0) {
 		for (;;) {
@@ -341,7 +346,7 @@ static void uninit_device(void)
 	case V4L2_MEMORY_MMAP:
 		for (i = 0; i < n_buffers; ++i)
 			if (-1 ==
-			    v4l2_munmap(buffers[i].start, buffers[i].length))
+				v4l2_munmap(buffers[i].start, buffers[i].length))
 				errno_exit("munmap");
 		break;
 	case V4L2_MEMORY_USERPTR:
@@ -463,7 +468,7 @@ static void init_userp(unsigned int buffer_size)
 	for (n_buffers = 0; n_buffers < 4; ++n_buffers) {
 		buffers[n_buffers].length = buffer_size;
 		buffers[n_buffers].start = memalign( /* boundary */ page_size,
-						    buffer_size);
+							buffer_size);
 
 		if (!buffers[n_buffers].start) {
 			fprintf(stderr, "Out of memory\n");
@@ -599,19 +604,21 @@ static void usage(FILE * fp, int argc, char **argv)
 		"-f | --format        Image format <width>x<height> [640x480]\n"
 		"-g | --grab          Grab an image and exit\n"
 		"-h | --help          Print this message\n"
+        "-n | --frames        Do not show a window, capture frame [100]\n"
 		"-m | --method      m Use memory mapped buffers (default)\n"
 		"                   r Use read() calls\n"
 		"                   u Use application allocated buffers\n"
 		"", argv[0]);
 }
 
-static const char short_options[] = "d:f:ghm:r";
+static const char short_options[] = "d:f:ghm:rn:";
 
 static const struct option long_options[] = {
 	{"device", required_argument, NULL, 'd'},
 	{"format", required_argument, NULL, 'f'},
 	{"grab", no_argument, NULL, 'g'},
 	{"help", no_argument, NULL, 'h'},
+	{"frames", required_argument, NULL, 'n'},
 	{"method", required_argument, NULL, 'm'},
 	{}
 };
@@ -619,7 +626,11 @@ static const struct option long_options[] = {
 int main(int argc, char **argv)
 {
 	int w, h;
+    long frames;
 
+    frames = DEFAULT_NUM_FRAMES;
+	grab = 0;
+	window = 1;
 	w = 640;
 	h = 480;
 	for (;;) {
@@ -645,6 +656,12 @@ int main(int argc, char **argv)
 			break;
 		case 'g':
 			grab = 1;
+			break;
+		case 'n':
+            window = 0;
+			frames = strtol(optarg, NULL, 10);
+            if (frames <= 0 || errno == EINVAL)
+                frames = DEFAULT_NUM_FRAMES;
 			break;
 		case 'h':
 			usage(stdout, argc, argv);
@@ -675,16 +692,21 @@ int main(int argc, char **argv)
 	init_device(w, h);
 	start_capturing();
 #ifdef HAVE_GTK
-	if (grab) {
-		printf("\tgtk:\tno\n");
-		get_frame();
-    } else {
-		printf("\tgtk:\tyes\n");
-		main_frontend(argc, argv);
-    }
+	if (window) {
+		if (grab) {
+			printf("\tgtk:\tno\n");
+			get_frame();
+		} else {
+			printf("\tgtk:\tyes\n");
+			main_frontend(argc, argv);
+		}
+	} else {
+		printf("\tgtk:\tdisabled\n");
+		mainloop(frames);
+	}
 #else
 	printf("\tgtk:\tdisabled\n");
-	mainloop();
+	mainloop(frames);
 #endif
 	stop_capturing();
 	uninit_device();
