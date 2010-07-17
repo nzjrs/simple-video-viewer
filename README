@@ -1,0 +1,4 @@
+A Simple Program for Viewing Video4Linux devices
+
+ * GTK Support (optional, default)
+ * Uses the libv4l library, supports every webcam and pixel format
