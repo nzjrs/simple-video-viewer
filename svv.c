@@ -67,36 +67,28 @@ static int read_frame(void);
 /* graphic functions */
 static GtkWidget *drawing_area;
 
-static void delete_event(GtkWidget * widget, GdkEvent * event, gpointer data)
+static void frame_ready(GIOChannel *source, GIOCondition condition, gpointer data)
 {
-	gtk_main_quit();
-}
-
-static void frame_ready(gpointer data, gint source, GdkInputCondition condition)
-{
-	/* libv4l seems to throw exceptions our way when emulating read(), just
-	ignore them */
-	if (!(condition & GDK_INPUT_EXCEPTION))
+	if (condition & G_IO_IN)
 		read_frame();
 }
-
 
 static int main_frontend(int argc, char *argv[])
 {
 	GtkWidget *window;
+    GIOChannel *io;
 
 	gtk_init(&argc, &argv);
-	gdk_rgb_init();
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_title(GTK_WINDOW(window), "My WebCam");
 
-	gtk_signal_connect(GTK_OBJECT(window), "delete_event",
-			   GTK_SIGNAL_FUNC(delete_event), NULL);
-	gtk_signal_connect(GTK_OBJECT(window), "destroy",
-			   GTK_SIGNAL_FUNC(delete_event), NULL);
-	gtk_signal_connect(GTK_OBJECT(window), "key_press_event",
-			   GTK_SIGNAL_FUNC(delete_event), NULL);
+	g_signal_connect(G_OBJECT(window), "delete_event",
+			   G_CALLBACK(gtk_main_quit), NULL);
+	g_signal_connect(G_OBJECT(window), "destroy",
+			   G_CALLBACK(gtk_main_quit), NULL);
+	g_signal_connect(G_OBJECT(window), "key_press_event",
+			   G_CALLBACK(gtk_main_quit), NULL);
 
 	gtk_container_set_border_width(GTK_CONTAINER(window), 2);
 
@@ -108,10 +100,12 @@ static int main_frontend(int argc, char *argv[])
 
 	gtk_widget_show_all(window);
 
-	gdk_input_add(fd,
-			GDK_INPUT_READ,
-			frame_ready,
-			NULL);
+    io = g_io_channel_unix_new(fd);
+    g_io_add_watch(io,
+            G_IO_IN,
+            (GIOFunc)frame_ready,
+            NULL);
+
 	gtk_main();
 
 	return 0;
@@ -131,8 +125,9 @@ static void process_image(unsigned char *p, int len)
 	}
 #ifdef HAVE_GTK
 	if (window) {
-		gdk_draw_rgb_image(drawing_area->window,
-				   drawing_area->style->white_gc,
+		gdk_draw_rgb_image(
+                   gtk_widget_get_window(drawing_area),
+				   gtk_widget_get_style(drawing_area)->white_gc,
 				   0, 0,		/* xpos, ypos */
 				   fmt.fmt.pix.width, fmt.fmt.pix.height,
 				   GDK_RGB_DITHER_NORMAL,
