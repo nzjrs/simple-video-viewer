@@ -22,13 +22,49 @@
 #include <sys/mman.h>
 
 #include <linux/videodev2.h>
+#include <libv4l2.h>
+#include <libv4lconvert.h>
+#include <glib.h>
 
 #ifdef HAVE_GTK
 #include <gtk/gtk.h>
+
+typedef struct __GuiGtk {
+    GtkWidget   *drawing_area;
+} GuiGtk;
+
+static GuiGtk g_ui;
+
 #endif
 
-#include <libv4l2.h>
-#include <libv4lconvert.h>
+#ifdef HAVE_CACA
+#include <caca.h>
+
+typedef struct __GuiCaca {
+    caca_canvas_t   *cv;
+    caca_display_t  *dp;
+    caca_dither_t   *im;
+    int             ww;
+    int             wh;
+} GuiCaca;
+
+static GuiCaca c_ui;
+#endif
+
+typedef struct __GuiNone {
+    long            num_frames;
+    long            frame;
+    int             grab;
+} GuiNone;
+static GuiNone n_ui;
+
+typedef void (*GuiUpdateFunction)(unsigned char *pixels, int len);
+typedef void (*GuiInitFunction)(int argc, char *argv[], int w, int h, int bpp);
+
+static GuiUpdateFunction    gui_update_function;
+static GuiInitFunction      gui_init_function;
+
+static GMainLoop            *loop;
 
 /* Sentinal value, must be != V4L2_MEMORY_{MMAP,USERPTR} 
 enum v4l2_memory {
@@ -42,18 +78,102 @@ enum v4l2_memory {
 #define DEFAULT_NUM_FRAMES 100
 
 struct buffer {
-	void *start;
-	size_t length;
+	void            *start;
+	size_t          length;
 };
 
-static char *dev_name = "/dev/video0";
-static int io = V4L2_MEMORY_MMAP;
-static int fd = -1;
-struct buffer *buffers;
-static int n_buffers;
-static struct v4l2_format fmt;
-static unsigned int window;
-static unsigned int grab;
+static char         *dev_name = "/dev/video0";
+static int          io = V4L2_MEMORY_MMAP;
+static int          fd = -1;
+struct buffer       *buffers;
+static int          n_buffers;
+static struct       v4l2_format fmt;
+
+void gui_none_init(int argc, char *argv[], int w, int h, int bpp)
+{
+
+}
+
+void gui_none_update(unsigned char *p, int len)
+{
+
+}
+
+#ifdef HAVE_GTK
+static void gui_gtk_quit(void)
+{
+    g_main_loop_quit (loop);
+}
+
+void gui_gtk_init(int argc, char *argv[], int w, int h, int bpp)
+{
+	GtkWidget *window;
+
+	gtk_init(&argc, &argv);
+
+	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_title(GTK_WINDOW(window), PACKAGE_NAME);
+
+	g_signal_connect(G_OBJECT(window), "delete_event",
+			   G_CALLBACK(gui_gtk_quit), NULL);
+	g_signal_connect(G_OBJECT(window), "destroy",
+			   G_CALLBACK(gui_gtk_quit), NULL);
+	g_signal_connect(G_OBJECT(window), "key_press_event",
+			   G_CALLBACK(gui_gtk_quit), NULL);
+
+	gtk_container_set_border_width(GTK_CONTAINER(window), 2);
+
+	g_ui.drawing_area = gtk_drawing_area_new();
+	gtk_drawing_area_size(
+            GTK_DRAWING_AREA(g_ui.drawing_area),
+            fmt.fmt.pix.width, fmt.fmt.pix.height);
+
+	gtk_container_add(GTK_CONTAINER(window), g_ui.drawing_area);
+
+	gtk_widget_show_all(window);
+
+}
+
+void gui_gtk_update(unsigned char *p, int len)
+{
+	gdk_draw_rgb_image(
+               gtk_widget_get_window(g_ui.drawing_area),
+			   gtk_widget_get_style(g_ui.drawing_area)->white_gc,
+			   0, 0,		/* xpos, ypos */
+			   fmt.fmt.pix.width, fmt.fmt.pix.height,
+			   GDK_RGB_DITHER_NORMAL,
+			   p,
+			   fmt.fmt.pix.width * 3);
+}
+#endif
+
+#ifdef HAVE_CACA
+void gui_console_update(unsigned char *p, int len)
+{
+    caca_dither_bitmap(
+        c_ui.cv,
+        0, 0,
+        c_ui.ww, c_ui.wh,
+        c_ui.im,
+        p);
+    caca_refresh_display(c_ui.dp);
+}
+
+void gui_console_init(int argc, char *argv[], int w, int h, int bpp)
+{
+        c_ui.dp = caca_create_display(NULL);
+        c_ui.cv = caca_get_canvas(c_ui.dp);
+        c_ui.ww = caca_get_canvas_width(c_ui.cv);
+        c_ui.wh = caca_get_canvas_height(c_ui.cv);
+
+	    caca_set_display_title(c_ui.dp, PACKAGE_NAME);
+        c_ui.im = caca_create_dither(
+                    bpp,
+                    w, h,
+                    3 * w /*stride*/,
+                    0xff0000, 0x00ff00, 0x0000ff, 0);
+}
+#endif
 
 static void errno_exit(const char *s)
 {
@@ -61,84 +181,21 @@ static void errno_exit(const char *s)
 	exit(EXIT_FAILURE);
 }
 
-#ifdef HAVE_GTK
-static int read_frame(void);
-
-/* graphic functions */
-static GtkWidget *drawing_area;
-
-static void frame_ready(GIOChannel *source, GIOCondition condition, gpointer data)
-{
-	if (condition & G_IO_IN)
-		read_frame();
-}
-
-static int main_frontend(int argc, char *argv[])
-{
-	GtkWidget *window;
-    GIOChannel *io;
-
-	gtk_init(&argc, &argv);
-
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), "My WebCam");
-
-	g_signal_connect(G_OBJECT(window), "delete_event",
-			   G_CALLBACK(gtk_main_quit), NULL);
-	g_signal_connect(G_OBJECT(window), "destroy",
-			   G_CALLBACK(gtk_main_quit), NULL);
-	g_signal_connect(G_OBJECT(window), "key_press_event",
-			   G_CALLBACK(gtk_main_quit), NULL);
-
-	gtk_container_set_border_width(GTK_CONTAINER(window), 2);
-
-	drawing_area = gtk_drawing_area_new();
-	gtk_drawing_area_size(GTK_DRAWING_AREA(drawing_area),
-				  fmt.fmt.pix.width, fmt.fmt.pix.height);
-
-	gtk_container_add(GTK_CONTAINER(window), drawing_area);
-
-	gtk_widget_show_all(window);
-
-    io = g_io_channel_unix_new(fd);
-    g_io_add_watch(io,
-            G_IO_IN,
-            (GIOFunc)frame_ready,
-            NULL);
-
-	gtk_main();
-
-	return 0;
-}
-#endif
-
 static void process_image(unsigned char *p, int len)
 {
-	if (grab) {
-		FILE *f;
-
-		f = fopen("image.dat", "w");
-		fwrite(p, 1, len, f);
-		fclose(f);
-		printf("image dumped to 'image.dat'\n");
-		exit(EXIT_SUCCESS);
-	}
-#ifdef HAVE_GTK
-	if (window) {
-		gdk_draw_rgb_image(
-                   gtk_widget_get_window(drawing_area),
-				   gtk_widget_get_style(drawing_area)->white_gc,
-				   0, 0,		/* xpos, ypos */
-				   fmt.fmt.pix.width, fmt.fmt.pix.height,
-				   GDK_RGB_DITHER_NORMAL,
-				   p,
-				   fmt.fmt.pix.width * 3);
-    } else {
-		fputc('.', stdout);	fflush(stdout);
+    if (n_ui.grab) {
+	    FILE *f;
+	    f = fopen("image.dat", "w");
+	    fwrite(p, 1, len, f);
+	    fclose(f);
+	    printf("image dumped to 'image.dat'\n");
     }
-#else
-	fputc('.', stdout);	fflush(stdout);
-#endif
+
+    gui_update_function(p, len);
+
+    if (n_ui.num_frames > 0)
+        if (++n_ui.frame >= n_ui.num_frames)
+            g_main_loop_quit (loop);
 }
 
 static int read_frame(void)
@@ -220,8 +277,15 @@ static int read_frame(void)
 	return 1;
 }
 
+static void frame_ready(GIOChannel *source, GIOCondition condition, gpointer data)
+{
+	if (condition & G_IO_IN)
+		read_frame();
+}
+
 static int get_frame()
 {
+#if 0
 	fd_set fds;
 	struct timeval tv;
 	int r;
@@ -245,22 +309,9 @@ static int get_frame()
 		fprintf(stderr, "select timeout\n");
 		exit(EXIT_FAILURE);
 	}
+#endif
 	return read_frame();
 }
-
-#if !WITH_GTK
-static void mainloop(int count)
-{
-	printf("capturing %u frames\n", count);
-	while (--count >= 0) {
-		for (;;) {
-			if (get_frame())
-				break;
-		}
-	}
-	fputc('\n', stdout); fflush(stdout);
-}
-#endif
 
 static void stop_capturing(void)
 {
@@ -592,25 +643,36 @@ static int open_device(void)
 
 static void usage(FILE * fp, int argc, char **argv)
 {
+#if defined(HAVE_GTK) && defined(HAVE_CACA)
+#define UI_AVAIL "gtk,console"
+#elif defined(HAVE_GTK)
+#define UI_AVAIL "gtk"
+#elif defined(HAVE_CACA)
+#define UI_AVAIL "console"
+#else
+#define UI_AVAIL ""
+#endif
 	fprintf(fp,
 		"Usage: %s [options]\n\n"
 		"Options:\n"
 		"-d | --device name   Video device name [/dev/video0]\n"
-		"-f | --format        Image format <width>x<height> [640x480]\n"
-		"-g | --grab          Grab an image and exit\n"
+		"-s | --size          Image size <width>x<height> [640x480]\n"
+		"-g | --grab          Grab an image and exit. Synonym for --frames=1\n"
+		"-u | --ui            UI method [none,"UI_AVAIL"]\n"
 		"-h | --help          Print this message\n"
-        "-n | --frames        Do not show a window, capture frame [100]\n"
+        "-n | --frames        Do not show a window, capture n frames [100]\n"
 		"-m | --method      m Use memory mapped buffers (default)\n"
 		"                   r Use read() calls\n"
 		"                   u Use application allocated buffers\n"
 		"", argv[0]);
 }
 
-static const char short_options[] = "d:f:ghm:rn:";
+static const char short_options[] = "d:f:ghm:rn:u:";
 
 static const struct option long_options[] = {
 	{"device", required_argument, NULL, 'd'},
-	{"format", required_argument, NULL, 'f'},
+	{"size", required_argument, NULL, 's'},
+	{"ui", required_argument, NULL, 'u'},
 	{"grab", no_argument, NULL, 'g'},
 	{"help", no_argument, NULL, 'h'},
 	{"frames", required_argument, NULL, 'n'},
@@ -620,14 +682,26 @@ static const struct option long_options[] = {
 
 int main(int argc, char **argv)
 {
-	int w, h;
-    long frames;
+	int w;
+    int h;
+    int bpp;
+    GIOChannel *io;
 
-    frames = DEFAULT_NUM_FRAMES;
-	grab = 0;
-	window = 1;
+    /* default to the gtk interface if available */
+    n_ui.frame = 0;
+    n_ui.num_frames = 0;
+    n_ui.grab = 0;
+#ifdef HAVE_GTK
+    gui_update_function = gui_gtk_update;
+    gui_init_function = gui_gtk_init;
+#else
+    gui_update_function = gui_none_update;
+    gui_init_function = gui_none_init;
+#endif
+
 	w = 640;
 	h = 480;
+    bpp = 24;
 	for (;;) {
 		int index;
 		int c;
@@ -643,20 +717,43 @@ int main(int argc, char **argv)
 		case 'd':
 			dev_name = optarg;
 			break;
-		case 'f':
+		case 's':
 			if (sscanf(optarg, "%dx%d", &w, &h) != 2) {
-				fprintf(stderr, "Invalid image format\n");
+				fprintf(stderr, "Invalid image size\n");
 				exit(EXIT_FAILURE);
 			}
 			break;
 		case 'g':
-			grab = 1;
+            n_ui.grab = 1;
 			break;
+        case 'u':
+            if (strcmp(optarg, "none") == 0) {
+                gui_update_function = gui_none_update;
+                gui_init_function = gui_none_init;
+            }
+            if (strcmp(optarg, "gtk") == 0) {
+#ifdef HAVE_GTK
+                gui_update_function = gui_gtk_update;
+                gui_init_function = gui_gtk_init;
+#else
+				fprintf(stderr, "Not compiled with gtk support\n");
+				exit(EXIT_FAILURE);
+#endif
+            }
+            if (strcmp(optarg, "console") == 0) {
+#ifdef HAVE_CACA
+                gui_update_function = gui_console_update;
+                gui_init_function = gui_console_init;
+#else
+				fprintf(stderr, "Not compiled with console support\n");
+				exit(EXIT_FAILURE);
+#endif
+            }
+            break;
 		case 'n':
-            window = 0;
-			frames = strtol(optarg, NULL, 10);
-            if (frames <= 0 || errno == EINVAL)
-                frames = DEFAULT_NUM_FRAMES;
+			n_ui.num_frames = strtol(optarg, NULL, 10);
+            if (n_ui.num_frames <= 0 || errno == EINVAL)
+                n_ui.num_frames = DEFAULT_NUM_FRAMES;
 			break;
 		case 'h':
 			usage(stdout, argc, argv);
@@ -686,23 +783,23 @@ int main(int argc, char **argv)
 	open_device();
 	init_device(w, h);
 	start_capturing();
-#ifdef HAVE_GTK
-	if (window) {
-		if (grab) {
-			printf("\tgtk:\tno\n");
-			get_frame();
-		} else {
-			printf("\tgtk:\tyes\n");
-			main_frontend(argc, argv);
-		}
-	} else {
-		printf("\tgtk:\tdisabled\n");
-		mainloop(frames);
-	}
-#else
-	printf("\tgtk:\tdisabled\n");
-	mainloop(frames);
-#endif
+
+    if (n_ui.num_frames > 0)
+	    printf("capturing %d frames\n", n_ui.num_frames);
+
+	get_frame();
+
+    gui_init_function(argc, argv, w, h, bpp);
+
+    io = g_io_channel_unix_new(fd);
+    g_io_add_watch(io,
+            G_IO_IN,
+            (GIOFunc)frame_ready,
+            NULL);
+
+    loop = g_main_loop_new(NULL, TRUE);
+    g_main_loop_run(loop);
+
 	stop_capturing();
 	uninit_device();
 	close_device();
