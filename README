@@ -1,4 +1,5 @@
 A Simple Program for Viewing Video4Linux devices
 
- * GTK Support (optional, default)
+ * GTK Support (optional)
+ * Console/X11/ncurses interface (optional, uses libcaca)
  * Uses the libv4l library, supports every webcam and pixel format
