@@ -598,7 +598,7 @@ static void init_device(int w, int h)
 
 	switch (io) {
 	case IO_METHOD_READ:
-		printf("\tio:\tio\n");
+		printf("\tio:\tread\n");
 		init_read(fmt.fmt.pix.sizeimage);
 		break;
 	case V4L2_MEMORY_MMAP:
