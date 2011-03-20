@@ -685,7 +685,7 @@ int main(int argc, char **argv)
 	int w;
     int h;
     int bpp;
-    GIOChannel *io;
+    GIOChannel *ioc;
 
     /* default to the gtk interface if available */
     n_ui.frame = 0;
@@ -785,14 +785,14 @@ int main(int argc, char **argv)
 	start_capturing();
 
     if (n_ui.num_frames > 0)
-	    printf("capturing %d frames\n", n_ui.num_frames);
+	    printf("capturing %ld frames\n", n_ui.num_frames);
 
 	get_frame();
 
     gui_init_function(argc, argv, w, h, bpp);
 
-    io = g_io_channel_unix_new(fd);
-    g_io_add_watch(io,
+    ioc = g_io_channel_unix_new(fd);
+    g_io_add_watch(ioc,
             G_IO_IN,
             (GIOFunc)frame_ready,
             NULL);
