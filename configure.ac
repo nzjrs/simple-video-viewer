@@ -6,6 +6,7 @@ AC_PROG_CC
 
 #compulsory
 PKG_CHECK_MODULES(LIBV4L, libv4l2)
+PKG_CHECK_MODULES(LIBV4LCONVERT, libv4lconvert)
 PKG_CHECK_MODULES(GLIB, glib-2.0)
 
 #gtk+ is optional
