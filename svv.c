@@ -26,6 +26,10 @@
 #include <libv4lconvert.h>
 #include <glib.h>
 
+#ifdef HAVE_WAYLAND
+#include "wayland-backend.h"
+#endif
+
 #ifdef HAVE_GTK
 #include <gtk/gtk.h>
 
@@ -643,15 +647,8 @@ static int open_device(void)
 
 static void usage(FILE * fp, int argc, char **argv)
 {
-#if defined(HAVE_GTK) && defined(HAVE_CACA)
-#define UI_AVAIL "gtk,console"
-#elif defined(HAVE_GTK)
-#define UI_AVAIL "gtk"
-#elif defined(HAVE_CACA)
-#define UI_AVAIL "console"
-#else
-#define UI_AVAIL ""
-#endif
+#define UI_AVAIL "gtk,console,wayland"
+
 	fprintf(fp,
 		"Usage: %s [options]\n\n"
 		"Options:\n"
@@ -747,6 +744,15 @@ int main(int argc, char **argv)
 #else
 				fprintf(stderr, "Not compiled with console support\n");
 				exit(EXIT_FAILURE);
+#endif
+			}
+			if (strcmp(optarg, "wayland") == 0) {
+#ifdef HAVE_WAYLAND
+					gui_update_function = wayland_backend_update;
+					gui_init_function = wayland_backend_init;
+#else
+					fprintf(stderr, "Not compiled with wayland support\n");
+					exit(EXIT_FAILURE);
 #endif
 			}
 			break;

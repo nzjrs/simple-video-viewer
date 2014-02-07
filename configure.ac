@@ -27,6 +27,18 @@ PKG_CHECK_MODULES(CACA, caca > 0.99,
                   [ have_caca=no ]
 )
 
+#wayland is optional
+PKG_CHECK_MODULES(WAYLAND, wayland-client,
+                  [
+                    have_wayland=yes
+                    AC_DEFINE(HAVE_WAYLAND,1,[wayland client library])
+                  ],
+                  [ have_wayland=no ]
+)
+
+AM_CONDITIONAL([BUILD_WAYLAND],
+               [test "x$have_wayland" = "xyes"])
+
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
@@ -37,5 +49,6 @@ AC_MSG_RESULT([
     Install path:             ${prefix}
     Use gtk+ 2.x:             ${have_gtk}
     Use libcaca:              ${have_caca}
+    Use wayland:              ${have_wayland}
 ])
 
