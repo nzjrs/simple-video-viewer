@@ -677,12 +677,23 @@ static const struct option long_options[] = {
 	{}
 };
 
+#ifdef HAVE_WAYLAND
+static void wayland_data(GIOChannel *source, GIOCondition condition, gpointer data)
+{
+	if (condition & G_IO_IN)
+		if (wayland_backend_dispatch() < 0)
+			exit(1);
+}
+#endif
+
 int main(int argc, char **argv)
 {
 	int w;
 	int h;
 	int bpp;
+	int use_wayland;
 	GIOChannel *ioc;
+	GIOChannel *iocwl;
 
 	/* default to the gtk interface if available */
 	n_ui.frame = 0;
@@ -699,6 +710,7 @@ int main(int argc, char **argv)
 	w = 640;
 	h = 480;
 	bpp = 24;
+	use_wayland = 0;
 	for (;;) {
 		int index;
 		int c;
@@ -750,6 +762,7 @@ int main(int argc, char **argv)
 #ifdef HAVE_WAYLAND
 					gui_update_function = wayland_backend_update;
 					gui_init_function = wayland_backend_init;
+					use_wayland = 1;
 #else
 					fprintf(stderr, "Not compiled with wayland support\n");
 					exit(EXIT_FAILURE);
@@ -802,6 +815,19 @@ int main(int argc, char **argv)
 			G_IO_IN,
 			(GIOFunc)frame_ready,
 			NULL);
+
+#ifdef HAVE_WAYLAND
+	if (use_wayland) {
+		/**
+		 * Add wayland fd listener to dispatch wayland events
+		 */
+		iocwl = g_io_channel_unix_new(wayland_backend_get_fd());
+		g_io_add_watch(iocwl,
+				G_IO_IN,
+				(GIOFunc)wayland_data,
+				NULL);
+	}
+#endif
 
 	loop = g_main_loop_new(NULL, TRUE);
 	g_main_loop_run(loop);
