@@ -26,11 +26,15 @@
 #include <libv4lconvert.h>
 #include <glib.h>
 
+#ifdef HAVE_WAYLAND
+#include "wayland-backend.h"
+#endif
+
 #ifdef HAVE_GTK
 #include <gtk/gtk.h>
 
 typedef struct __GuiGtk {
-    GtkWidget   *drawing_area;
+	GtkWidget   *drawing_area;
 } GuiGtk;
 
 static GuiGtk g_ui;
@@ -41,20 +45,20 @@ static GuiGtk g_ui;
 #include <caca.h>
 
 typedef struct __GuiCaca {
-    caca_canvas_t   *cv;
-    caca_display_t  *dp;
-    caca_dither_t   *im;
-    int             ww;
-    int             wh;
+	caca_canvas_t   *cv;
+	caca_display_t  *dp;
+	caca_dither_t   *im;
+	int             ww;
+	int             wh;
 } GuiCaca;
 
 static GuiCaca c_ui;
 #endif
 
 typedef struct __GuiNone {
-    long            num_frames;
-    long            frame;
-    int             grab;
+	long            num_frames;
+	long            frame;
+	int             grab;
 } GuiNone;
 static GuiNone n_ui;
 
@@ -68,9 +72,9 @@ static GMainLoop            *loop;
 
 /* Sentinal value, must be != V4L2_MEMORY_{MMAP,USERPTR} 
 enum v4l2_memory {
-        V4L2_MEMORY_MMAP
-        V4L2_MEMORY_USERPTR
-        V4L2_MEMORY_OVERLAY
+		V4L2_MEMORY_MMAP
+		V4L2_MEMORY_USERPTR
+		V4L2_MEMORY_OVERLAY
 };
 */
 #define IO_METHOD_READ 42
@@ -102,7 +106,7 @@ void gui_none_update(unsigned char *p, int len)
 #ifdef HAVE_GTK
 static void gui_gtk_quit(void)
 {
-    g_main_loop_quit (loop);
+	g_main_loop_quit (loop);
 }
 
 void gui_gtk_init(int argc, char *argv[], int w, int h, int bpp)
@@ -125,8 +129,8 @@ void gui_gtk_init(int argc, char *argv[], int w, int h, int bpp)
 
 	g_ui.drawing_area = gtk_drawing_area_new();
 	gtk_drawing_area_size(
-            GTK_DRAWING_AREA(g_ui.drawing_area),
-            fmt.fmt.pix.width, fmt.fmt.pix.height);
+			GTK_DRAWING_AREA(g_ui.drawing_area),
+			fmt.fmt.pix.width, fmt.fmt.pix.height);
 
 	gtk_container_add(GTK_CONTAINER(window), g_ui.drawing_area);
 
@@ -137,7 +141,7 @@ void gui_gtk_init(int argc, char *argv[], int w, int h, int bpp)
 void gui_gtk_update(unsigned char *p, int len)
 {
 	gdk_draw_rgb_image(
-               gtk_widget_get_window(g_ui.drawing_area),
+			   gtk_widget_get_window(g_ui.drawing_area),
 			   gtk_widget_get_style(g_ui.drawing_area)->white_gc,
 			   0, 0,		/* xpos, ypos */
 			   fmt.fmt.pix.width, fmt.fmt.pix.height,
@@ -150,28 +154,28 @@ void gui_gtk_update(unsigned char *p, int len)
 #ifdef HAVE_CACA
 void gui_console_update(unsigned char *p, int len)
 {
-    caca_dither_bitmap(
-        c_ui.cv,
-        0, 0,
-        c_ui.ww, c_ui.wh,
-        c_ui.im,
-        p);
-    caca_refresh_display(c_ui.dp);
+	caca_dither_bitmap(
+		c_ui.cv,
+		0, 0,
+		c_ui.ww, c_ui.wh,
+		c_ui.im,
+		p);
+	caca_refresh_display(c_ui.dp);
 }
 
 void gui_console_init(int argc, char *argv[], int w, int h, int bpp)
 {
-        c_ui.dp = caca_create_display(NULL);
-        c_ui.cv = caca_get_canvas(c_ui.dp);
-        c_ui.ww = caca_get_canvas_width(c_ui.cv);
-        c_ui.wh = caca_get_canvas_height(c_ui.cv);
+		c_ui.dp = caca_create_display(NULL);
+		c_ui.cv = caca_get_canvas(c_ui.dp);
+		c_ui.ww = caca_get_canvas_width(c_ui.cv);
+		c_ui.wh = caca_get_canvas_height(c_ui.cv);
 
-	    caca_set_display_title(c_ui.dp, PACKAGE_NAME);
-        c_ui.im = caca_create_dither(
-                    bpp,
-                    w, h,
-                    3 * w /*stride*/,
-                    0xff0000, 0x00ff00, 0x0000ff, 0);
+		caca_set_display_title(c_ui.dp, PACKAGE_NAME);
+		c_ui.im = caca_create_dither(
+					bpp,
+					w, h,
+					3 * w /*stride*/,
+					0xff0000, 0x00ff00, 0x0000ff, 0);
 }
 #endif
 
@@ -183,19 +187,19 @@ static void errno_exit(const char *s)
 
 static void process_image(unsigned char *p, int len)
 {
-    if (n_ui.grab) {
-	    FILE *f;
-	    f = fopen("image.dat", "w");
-	    fwrite(p, 1, len, f);
-	    fclose(f);
-	    printf("image dumped to 'image.dat'\n");
-    }
+	if (n_ui.grab) {
+		FILE *f;
+		f = fopen("image.dat", "w");
+		fwrite(p, 1, len, f);
+		fclose(f);
+		printf("image dumped to 'image.dat'\n");
+	}
 
-    gui_update_function(p, len);
+	gui_update_function(p, len);
 
-    if (n_ui.num_frames > 0)
-        if (++n_ui.frame >= n_ui.num_frames)
-            g_main_loop_quit (loop);
+	if (n_ui.num_frames > 0)
+		if (++n_ui.frame >= n_ui.num_frames)
+			g_main_loop_quit (loop);
 }
 
 static int read_frame(void)
@@ -559,9 +563,9 @@ static void init_device(int w, int h)
 	fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB24;
 	fmt.fmt.pix.field = V4L2_FIELD_INTERLACED;
 
-	/* libv4l also converts mutiple supported formats to V4l2_PIX_FMT_BGR24 or 
-	V4l2_PIX_FMT_YUV420, which means the following call should *always* 
-	succeed 
+	/* libv4l also converts mutiple supported formats to V4l2_PIX_FMT_BGR24 or
+	V4l2_PIX_FMT_YUV420, which means the following call should *always*
+	succeed
 
 	However, we use the libv4lconvert library to print debugging information
 	to tell us if libv4l will be doing the conversion internally*/
@@ -578,7 +582,7 @@ static void init_device(int w, int h)
 		(src_fmt.fmt.pix.pixelformat >> 24) & 0xff,
 		src_fmt.fmt.pix.width, src_fmt.fmt.pix.height);
 
-	printf("application\n\tconv:\t%c\n", 
+	printf("application\n\tconv:\t%c\n",
 		v4lconvert_needs_conversion(v4lconvert_data,
 			&src_fmt,
 			&fmt) ? 'Y' : 'N');
@@ -643,15 +647,8 @@ static int open_device(void)
 
 static void usage(FILE * fp, int argc, char **argv)
 {
-#if defined(HAVE_GTK) && defined(HAVE_CACA)
-#define UI_AVAIL "gtk,console"
-#elif defined(HAVE_GTK)
-#define UI_AVAIL "gtk"
-#elif defined(HAVE_CACA)
-#define UI_AVAIL "console"
-#else
-#define UI_AVAIL ""
-#endif
+#define UI_AVAIL "gtk,console,wayland"
+
 	fprintf(fp,
 		"Usage: %s [options]\n\n"
 		"Options:\n"
@@ -660,7 +657,7 @@ static void usage(FILE * fp, int argc, char **argv)
 		"-g | --grab          Grab an image and exit. Synonym for --frames=1\n"
 		"-u | --ui            UI method [none,"UI_AVAIL"]\n"
 		"-h | --help          Print this message\n"
-        "-n | --frames        Do not show a window, capture n frames [100]\n"
+		"-n | --frames        Do not show a window, capture n frames [100]\n"
 		"-m | --method      m Use memory mapped buffers (default)\n"
 		"                   r Use read() calls\n"
 		"                   u Use application allocated buffers\n"
@@ -680,28 +677,40 @@ static const struct option long_options[] = {
 	{}
 };
 
+#ifdef HAVE_WAYLAND
+static void wayland_data(GIOChannel *source, GIOCondition condition, gpointer data)
+{
+	if (condition & G_IO_IN)
+		if (wayland_backend_dispatch() < 0)
+			exit(1);
+}
+#endif
+
 int main(int argc, char **argv)
 {
 	int w;
-    int h;
-    int bpp;
-    GIOChannel *ioc;
+	int h;
+	int bpp;
+	int use_wayland;
+	GIOChannel *ioc;
+	GIOChannel *iocwl;
 
-    /* default to the gtk interface if available */
-    n_ui.frame = 0;
-    n_ui.num_frames = 0;
-    n_ui.grab = 0;
+	/* default to the gtk interface if available */
+	n_ui.frame = 0;
+	n_ui.num_frames = 0;
+	n_ui.grab = 0;
 #ifdef HAVE_GTK
-    gui_update_function = gui_gtk_update;
-    gui_init_function = gui_gtk_init;
+	gui_update_function = gui_gtk_update;
+	gui_init_function = gui_gtk_init;
 #else
-    gui_update_function = gui_none_update;
-    gui_init_function = gui_none_init;
+	gui_update_function = gui_none_update;
+	gui_init_function = gui_none_init;
 #endif
 
 	w = 640;
 	h = 480;
-    bpp = 24;
+	bpp = 24;
+	use_wayland = 0;
 	for (;;) {
 		int index;
 		int c;
@@ -724,36 +733,46 @@ int main(int argc, char **argv)
 			}
 			break;
 		case 'g':
-            n_ui.grab = 1;
+			n_ui.grab = 1;
 			break;
-        case 'u':
-            if (strcmp(optarg, "none") == 0) {
-                gui_update_function = gui_none_update;
-                gui_init_function = gui_none_init;
-            }
-            if (strcmp(optarg, "gtk") == 0) {
+		case 'u':
+			if (strcmp(optarg, "none") == 0) {
+				gui_update_function = gui_none_update;
+				gui_init_function = gui_none_init;
+			}
+			if (strcmp(optarg, "gtk") == 0) {
 #ifdef HAVE_GTK
-                gui_update_function = gui_gtk_update;
-                gui_init_function = gui_gtk_init;
+				gui_update_function = gui_gtk_update;
+				gui_init_function = gui_gtk_init;
 #else
 				fprintf(stderr, "Not compiled with gtk support\n");
 				exit(EXIT_FAILURE);
 #endif
-            }
-            if (strcmp(optarg, "console") == 0) {
+			}
+			if (strcmp(optarg, "console") == 0) {
 #ifdef HAVE_CACA
-                gui_update_function = gui_console_update;
-                gui_init_function = gui_console_init;
+				gui_update_function = gui_console_update;
+				gui_init_function = gui_console_init;
 #else
 				fprintf(stderr, "Not compiled with console support\n");
 				exit(EXIT_FAILURE);
 #endif
-            }
-            break;
+			}
+			if (strcmp(optarg, "wayland") == 0) {
+#ifdef HAVE_WAYLAND
+					gui_update_function = wayland_backend_update;
+					gui_init_function = wayland_backend_init;
+					use_wayland = 1;
+#else
+					fprintf(stderr, "Not compiled with wayland support\n");
+					exit(EXIT_FAILURE);
+#endif
+			}
+			break;
 		case 'n':
 			n_ui.num_frames = strtol(optarg, NULL, 10);
-            if (n_ui.num_frames <= 0 || errno == EINVAL)
-                n_ui.num_frames = DEFAULT_NUM_FRAMES;
+			if (n_ui.num_frames <= 0 || errno == EINVAL)
+				n_ui.num_frames = DEFAULT_NUM_FRAMES;
 			break;
 		case 'h':
 			usage(stdout, argc, argv);
@@ -784,21 +803,34 @@ int main(int argc, char **argv)
 	init_device(w, h);
 	start_capturing();
 
-    if (n_ui.num_frames > 0)
-	    printf("capturing %ld frames\n", n_ui.num_frames);
+	if (n_ui.num_frames > 0)
+		printf("capturing %ld frames\n", n_ui.num_frames);
 
 	get_frame();
 
-    gui_init_function(argc, argv, w, h, bpp);
+	gui_init_function(argc, argv, w, h, bpp);
 
-    ioc = g_io_channel_unix_new(fd);
-    g_io_add_watch(ioc,
-            G_IO_IN,
-            (GIOFunc)frame_ready,
-            NULL);
+	ioc = g_io_channel_unix_new(fd);
+	g_io_add_watch(ioc,
+			G_IO_IN,
+			(GIOFunc)frame_ready,
+			NULL);
 
-    loop = g_main_loop_new(NULL, TRUE);
-    g_main_loop_run(loop);
+#ifdef HAVE_WAYLAND
+	if (use_wayland) {
+		/**
+		 * Add wayland fd listener to dispatch wayland events
+		 */
+		iocwl = g_io_channel_unix_new(wayland_backend_get_fd());
+		g_io_add_watch(iocwl,
+				G_IO_IN,
+				(GIOFunc)wayland_data,
+				NULL);
+	}
+#endif
+
+	loop = g_main_loop_new(NULL, TRUE);
+	g_main_loop_run(loop);
 
 	stop_capturing();
 	uninit_device();
